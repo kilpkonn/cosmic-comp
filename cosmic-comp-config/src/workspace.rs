@@ -26,6 +26,7 @@ impl Default for WorkspaceConfig {
 pub enum WorkspaceMode {
     OutputBound,
     Global,
+    PerOutput,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

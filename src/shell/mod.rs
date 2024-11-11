@@ -946,7 +946,7 @@ impl Workspaces {
                     }
                 }
             }
-            WorkspaceMode::OutputBound => {
+            WorkspaceMode::OutputBound | WorkspaceMode::PerOutput => {
                 for set in self.sets.values_mut() {
                     set.ensure_last_empty(workspace_state);
                 }
@@ -1291,6 +1291,7 @@ impl Shell {
         }
     }
 
+    // Change this
     pub fn activate(
         &mut self,
         output: &Output,
@@ -1324,12 +1325,32 @@ impl Shell {
                 }
                 Ok(None)
             }
+            WorkspaceMode::PerOutput => {
+                if let Some((_output, set)) = self.workspaces.sets.get_index_mut(idx) {
+                    if matches!(
+                        self.overview_mode.active_trigger(),
+                        Some(Trigger::Pointer(_) | Trigger::Touch(_))
+                    ) {
+                        set.workspaces[set.active].tiling_layer.cleanup_drag();
+                    }
+                    set.set_output(output);
+                    set.activate(idx, workspace_delta, workspace_state)?;
+
+                    let output_geo = output.geometry();
+                    Ok(Some(
+                        output_geo.loc
+                            + Point::from((output_geo.size.w / 2, output_geo.size.h / 2)),
+                    ))
+                } else {
+                    Ok(None)
+                }
+            }
         }
     }
 
     pub fn update_workspace_delta(&mut self, output: &Output, delta: f64) {
         match &mut self.workspaces.mode {
-            WorkspaceMode::OutputBound => {
+            WorkspaceMode::OutputBound | WorkspaceMode::PerOutput => {
                 if let Some(set) = self.workspaces.sets.get_mut(output) {
                     set.update_workspace_delta(delta);
                 }
@@ -1428,6 +1449,7 @@ impl Shell {
                 }
                 Ok(None)
             }
+            WorkspaceMode::PerOutput => Ok(None),
         }
     }
 
@@ -1960,13 +1982,14 @@ impl Shell {
         self.pending_windows.retain(|(s, _, _)| s.alive());
     }
 
-    pub fn update_pointer_position(&mut self, location: Point<f64, Local>, output: &Output) { 
+    pub fn update_pointer_position(&mut self, location: Point<f64, Local>, output: &Output) {
         for (o, set) in self.workspaces.sets.iter_mut() {
             if o == output {
                 set.sticky_layer.update_pointer_position(Some(location));
                 for (i, workspace) in set.workspaces.iter_mut().enumerate() {
                     if i == set.active {
-                        workspace.update_pointer_position(Some(location), self.overview_mode.clone());
+                        workspace
+                            .update_pointer_position(Some(location), self.overview_mode.clone());
                     } else {
                         workspace.update_pointer_position(None, self.overview_mode.clone());
                     }
